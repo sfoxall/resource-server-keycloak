@@ -13,6 +13,7 @@ import java.util.Map;
 @RequestMapping("/token")
 public class TokenController {
 
+    // Adding @SecurityRequirements will disable security in swagger for method it is applied to
     @GetMapping
     public Map<String, Object> getToken(@AuthenticationPrincipal Jwt jwt) {
         return Collections.singletonMap("principle", jwt);

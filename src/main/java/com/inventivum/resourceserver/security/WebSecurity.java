@@ -95,6 +95,8 @@ public class WebSecurity {
         // @formatter:off
         http.authorizeRequests()
                 .antMatchers( "/v3/api-docs/**").permitAll()
+                .antMatchers( "/swagger-ui/**").permitAll()
+                .antMatchers("/swagger-ui/index.html").permitAll()
                 .anyRequest().authenticated();
         // @formatter:on
 
