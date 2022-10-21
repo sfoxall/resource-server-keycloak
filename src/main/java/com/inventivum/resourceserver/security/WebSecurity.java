@@ -1,6 +1,8 @@
 package com.inventivum.resourceserver.security;
 
+import com.inventivum.resourceserver.service.RoleService;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpHeaders;
@@ -13,7 +15,6 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -22,49 +23,45 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
+@Configuration
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)
 public class WebSecurity {
 
-    public interface Jwt2AuthoritiesConverter extends Converter<Jwt, Collection<? extends GrantedAuthority>> {
+    private final RoleService roleService;
+
+    public WebSecurity(RoleService roleService) {
+        this.roleService = roleService;
     }
 
-    @Bean
-    public Jwt2AuthoritiesConverter authoritiesConverter() {
+    public Converter<Jwt, Collection<GrantedAuthority>> authoritiesConverter() {
         // This is a converter for roles as embedded in the JWT by a Keycloak server
-        // Roles are taken from both realm_access.roles & resource_access.{client}.roles
+        // Roles are taken from both realm_access.roles
         return jwt -> {
             final var realmAccess = (Map<String, Object>) jwt.getClaims().getOrDefault("realm_access", Map.of());
-            final var realmRoles = (Collection<String>) realmAccess.getOrDefault("roles", List.of());
 
-            final var resourceAccess = (Map<String, Object>) jwt.getClaims().getOrDefault("resource_access", Map.of());
-            // We assume here you have "spring-addons-confidential" and "spring-addons-public" clients configured with "client roles" mapper in Keycloak
-            final var confidentialClientAccess = (Map<String, Object>) resourceAccess.getOrDefault("spring-addons-confidential", Map.of());
-            final var confidentialClientRoles = (Collection<String>) confidentialClientAccess.getOrDefault("roles", List.of());
-            final var publicClientAccess = (Map<String, Object>) resourceAccess.getOrDefault("spring-addons-public", Map.of());
-            final var publicClientRoles = (Collection<String>) publicClientAccess.getOrDefault("roles", List.of());
-
-            return Stream.concat(realmRoles.stream(), Stream.concat(confidentialClientRoles.stream(), publicClientRoles.stream()))
-                    .map(SimpleGrantedAuthority::new).toList();
+            return ((List<String>) realmAccess.get("roles"))
+                    .stream()
+                    .map(r -> "ROLE_" + r)
+                    .map(SimpleGrantedAuthority::new)
+                    .collect(Collectors.toList());
         };
     }
 
-    public interface Jwt2AuthenticationConverter extends Converter<Jwt, AbstractAuthenticationToken> {
+    @Bean
+    public Converter<Jwt,AbstractAuthenticationToken> customJwtAuthenticationConverter(RoleService roleService) {
+        return new CustomJwtAuthenticationConverter(
+                authoritiesConverter(), roleService);
     }
 
     @Bean
-    public Jwt2AuthenticationConverter authenticationConverter(Jwt2AuthoritiesConverter authoritiesConverter) {
-        return jwt -> new JwtAuthenticationToken(jwt, authoritiesConverter.convert(jwt));
-    }
-
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, Jwt2AuthenticationConverter authenticationConverter, ServerProperties serverProperties)
+    public SecurityFilterChain filterChain(HttpSecurity http, ServerProperties serverProperties)
             throws Exception {
 
         // Enable OAuth2 with custom authorities mapping
-        http.oauth2ResourceServer().jwt().jwtAuthenticationConverter(authenticationConverter);
+        http.oauth2ResourceServer().jwt().jwtAuthenticationConverter(customJwtAuthenticationConverter(roleService));
 
         // Enable anonymous
         http.anonymous();
