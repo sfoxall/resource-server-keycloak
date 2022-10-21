@@ -1,12 +1,11 @@
 package com.inventivum.resourceserver.security;
 
 import com.inventivum.resourceserver.service.RoleService;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.context.annotation.Bean;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -15,6 +14,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -31,9 +31,11 @@ import java.util.stream.Collectors;
 public class WebSecurity {
 
     private final RoleService roleService;
+    private final AuthenticationEntryPoint authEntryPoint;
 
-    public WebSecurity(RoleService roleService) {
+    public WebSecurity(RoleService roleService, @Qualifier("delegatedAuthenticationEntryPoint") AuthenticationEntryPoint authEntryPoint) {
         this.roleService = roleService;
+        this.authEntryPoint = authEntryPoint;
     }
 
     public Converter<Jwt, Collection<GrantedAuthority>> authoritiesConverter() {
@@ -75,11 +77,8 @@ public class WebSecurity {
         // Enable CSRF with cookie repo because of state-less session-management
         http.csrf().disable();
 
-        // Return 401 (unauthorized) instead of 403 (redirect to login) when authorization is missing or invalid
-        http.exceptionHandling().authenticationEntryPoint((request, response, authException) -> {
-            response.addHeader(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"Restricted Content\"");
-            response.sendError(HttpStatus.UNAUTHORIZED.value(), HttpStatus.UNAUTHORIZED.getReasonPhrase());
-        });
+        // Using a delegated authentication entry point to forward to controller advice
+        http.exceptionHandling().authenticationEntryPoint(authEntryPoint);
 
         // If SSL enabled, disable http (https only)
         if (serverProperties.getSsl() != null && serverProperties.getSsl().isEnabled()) {
