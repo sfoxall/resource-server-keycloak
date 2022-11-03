@@ -16,6 +16,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -53,6 +54,11 @@ public class WebSecurity {
     }
 
     @Bean
+    public AccessDeniedHandler accessDeniedHandler() {
+        return new CustomAccessDeniedHandler();
+    }
+
+    @Bean
     public Converter<Jwt,AbstractAuthenticationToken> customJwtAuthenticationConverter(RoleService roleService) {
         return new CustomJwtAuthenticationConverter(
                 authoritiesConverter(), roleService);
@@ -80,6 +86,9 @@ public class WebSecurity {
         // Using a delegated authentication entry point to forward to controller advice
         http.exceptionHandling().authenticationEntryPoint(authEntryPoint);
 
+        // Using a custom handler for forbidden 403, as not picked-up in entry point above
+        http.exceptionHandling().accessDeniedHandler(accessDeniedHandler());
+
         // If SSL enabled, disable http (https only)
         if (serverProperties.getSsl() != null && serverProperties.getSsl().isEnabled()) {
             http.requiresChannel().anyRequest().requiresSecure();
@@ -93,6 +102,7 @@ public class WebSecurity {
                 .antMatchers( "/v3/api-docs/**").permitAll()
                 .antMatchers( "/swagger-ui/**").permitAll()
                 .antMatchers("/swagger-ui/index.html").permitAll()
+                .antMatchers("/**").hasAnyRole("admin", "user")
                 .anyRequest().authenticated();
         // @formatter:on
 
