@@ -25,4 +25,9 @@ public class RoleServiceImpl implements RoleService {
         }
         else return List.of("Buyer", "Supplier");
     }
+
+    @Override
+    public boolean hasPermission(String permissionName, String pageName, String supplierId){
+        return true;
+    }
 }

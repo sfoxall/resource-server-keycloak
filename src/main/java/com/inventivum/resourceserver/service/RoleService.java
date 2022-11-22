@@ -4,6 +4,8 @@ import java.util.List;
 
 public interface RoleService {
 
-    public List<String> getRoles(String email);
+    List<String> getRoles(String email);
+
+    boolean hasPermission(String permissionName, String pageName, String supplierId);
 
 }

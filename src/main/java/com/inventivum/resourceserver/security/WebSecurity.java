@@ -2,12 +2,17 @@ package com.inventivum.resourceserver.security;
 
 import com.inventivum.resourceserver.service.RoleService;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Role;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+import org.springframework.security.config.annotation.method.configuration.GlobalMethodSecurityConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -28,7 +33,6 @@ import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true)
 public class WebSecurity {
 
     private final RoleService roleService;
@@ -51,6 +55,24 @@ public class WebSecurity {
                     .map(SimpleGrantedAuthority::new)
                     .collect(Collectors.toList());
         };
+    }
+
+    @Configuration
+    @EnableGlobalMethodSecurity(prePostEnabled = true)
+    @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+    public static class MethodSecurityConfig extends GlobalMethodSecurityConfiguration {
+
+        private final RoleService roleService;
+
+        @Lazy
+        public MethodSecurityConfig(RoleService roleService) {
+            this.roleService = roleService;
+        }
+
+        @Override
+        protected MethodSecurityExpressionHandler createExpressionHandler() {
+            return new CustomMethodSecurityExpressionHandler(roleService);
+        }
     }
 
     @Bean
