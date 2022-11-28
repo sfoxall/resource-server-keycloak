@@ -91,7 +91,13 @@ public class WebSecurity {
             throws Exception {
 
         // Enable OAuth2 with custom authorities mapping
-        http.oauth2ResourceServer().jwt().jwtAuthenticationConverter(customJwtAuthenticationConverter(roleService));
+        http.oauth2ResourceServer()
+                .jwt()
+                .jwtAuthenticationConverter(customJwtAuthenticationConverter(roleService)).and()
+                // Using a custom handler for access denied exceptions
+                .accessDeniedHandler(accessDeniedHandler())
+                // Using a delegated authentication entry point to forward to controller advice
+                .authenticationEntryPoint(authEntryPoint);
 
         // Enable anonymous
         http.anonymous();
@@ -105,12 +111,6 @@ public class WebSecurity {
         // Enable CSRF with cookie repo because of state-less session-management
         http.csrf().disable();
 
-        // Using a delegated authentication entry point to forward to controller advice
-        http.exceptionHandling().authenticationEntryPoint(authEntryPoint);
-
-        // Using a custom handler for forbidden 403, as not picked-up in entry point above
-        http.exceptionHandling().accessDeniedHandler(accessDeniedHandler());
-
         // If SSL enabled, disable http (https only)
         if (serverProperties.getSsl() != null && serverProperties.getSsl().isEnabled()) {
             http.requiresChannel().anyRequest().requiresSecure();
@@ -120,12 +120,11 @@ public class WebSecurity {
 
         // Route security: authenticated to all routes but Swagger-UI
         // @formatter:off
-        http.authorizeRequests()
-                .antMatchers( "/v3/api-docs/**").permitAll()
-                .antMatchers( "/swagger-ui/**").permitAll()
-                .antMatchers("/swagger-ui/index.html").permitAll()
-                .antMatchers("/**").hasAnyRole("admin", "user")
-                .anyRequest().authenticated();
+        http.authorizeHttpRequests((authorize) -> authorize
+                .requestMatchers( "/h2-console/**").permitAll()
+                .requestMatchers( "/v3/api-docs/**").permitAll()
+                .requestMatchers( "/swagger-ui/**").permitAll()
+                .requestMatchers("/**").hasAnyRole("admin", "user"));
         // @formatter:on
 
         return http.build();
